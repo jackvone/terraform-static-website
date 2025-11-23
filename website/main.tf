@@ -61,7 +61,6 @@ resource "aws_acm_certificate" "website" {
 # CloudFront Distribution
 resource "aws_cloudfront_distribution" "website" {
   origin {
-    domain_name = aws_s3_bucket_website_configuration.website.website_endpoint
     origin_id   = "S3-${aws_s3_bucket.website.bucket}"
 
     custom_origin_config {
