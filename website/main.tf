@@ -2,20 +2,18 @@ provider "aws" {
   region = var.region
 }
 
-# ---------- S3 BUCKET (Website Hosting) ----------
+# ---------- S3 BUCKET (Private, no website hosting) ----------
 resource "aws_s3_bucket" "website" {
   bucket = var.domain
-}
 
-resource "aws_s3_bucket_website_configuration" "website" {
-  bucket = aws_s3_bucket.website.id
-
-  index_document {
-    suffix = "index.html"
+  # Optional: Add tags for cost allocation
+  tags = {
+    Project     = "StaticWebsite"
+    Environment = "Demo"
   }
 }
 
-# Block public access (CloudFront will access via OAI)
+# Block ALL public access (bucket is private; CloudFront accesses via OAI)
 resource "aws_s3_bucket_public_access_block" "website" {
   bucket = aws_s3_bucket.website.id
 
@@ -26,12 +24,11 @@ resource "aws_s3_bucket_public_access_block" "website" {
 }
 
 # ---------- CLOUDFRONT ----------
-# CloudFront Origin Access Identity (OAI)
 resource "aws_cloudfront_origin_access_identity" "website" {
   comment = "OAI for ${var.domain}"
 }
 
-# S3 bucket policy to allow CloudFront (via OAI) only
+# Bucket policy: allow ONLY CloudFront (via OAI) to read objects
 resource "aws_s3_bucket_policy" "website" {
   bucket = aws_s3_bucket.website.id
   policy = data.aws_iam_policy_document.s3_policy.json
@@ -39,35 +36,41 @@ resource "aws_s3_bucket_policy" "website" {
 
 data "aws_iam_policy_document" "s3_policy" {
   statement {
-    actions   = ["s3:GetObject"]
-    resources = ["${aws_s3_bucket.website.arn}/*"]
+    effect = "Allow"
 
     principals {
       type        = "AWS"
       identifiers = [aws_cloudfront_origin_access_identity.website.iam_arn]
     }
+
+    actions   = ["s3:GetObject"]
+    resources = ["${aws_s3_bucket.website.arn}/*"]
   }
 }
 
-# SSL Certificate (in us-east-1)
+# ACM Certificate (must be in us-east-1 for CloudFront)
 resource "aws_acm_certificate" "website" {
   domain_name       = var.domain
   validation_method = "DNS"
+
   lifecycle {
     create_before_destroy = true
+  }
+
+  tags = {
+    Project = "StaticWebsite"
   }
 }
 
 # CloudFront Distribution
 resource "aws_cloudfront_distribution" "website" {
   origin {
+    domain_name = aws_s3_bucket.website.bucket_regional_domain_name
     origin_id   = "S3-${aws_s3_bucket.website.bucket}"
 
-    custom_origin_config {
-      http_port              = 80
-      https_port             = 443
-      origin_protocol_policy = "http-only"
-      origin_ssl_protocols   = ["TLSv1.2"]
+    # Use S3 origin config (not custom!)
+    s3_origin_config {
+      origin_access_identity = aws_cloudfront_origin_access_identity.website.cloudfront_access_identity_path
     }
   }
 
@@ -95,7 +98,7 @@ resource "aws_cloudfront_distribution" "website" {
     max_ttl                = 86400
   }
 
-  price_class = "PriceClass_100" # Cheapest (US, Canada, Europe)
+  price_class = "PriceClass_100" # Most cost-effective
 
   restrictions {
     geo_restriction {
@@ -109,5 +112,13 @@ resource "aws_cloudfront_distribution" "website" {
     minimum_protocol_version = "TLSv1.2_2021"
   }
 
-  depends_on = [aws_s3_bucket_public_access_block.website]
-}
+  # Wait for policy and public access block to be applied
+  depends_on = [
+    aws_s3_bucket_policy.website,
+    aws_s3_bucket_public_access_block.website
+  ]
+
+  tags = {
+    Project = "StaticWebsite"
+  }
+}  
