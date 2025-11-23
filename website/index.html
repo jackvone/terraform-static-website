@@ -1,11 +1,30 @@
-<DOCTYPE html>
-<html>
+<!DOCTYPE html>
+<html lang="en">
 <head>
-  <title>My quote</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>My Daily Sudoku</title>
+  <!-- Optional: Add a favicon later -->
 </head>
 <body>
-  <h1>Welcome to My Daily Quote!</h1>
-  <p> New quote drops every day at midnight!</p>
-  <blockquote>"Automation is the friend of the career changer." — You, soon.</blockquote>
+  <h1>🎉 Welcome to My Daily Sudoku!</h1>
+  <p>Complete the puzzle and be inspired!</p>
+
+  <!-- This is where the daily quote will appear -->
+  <blockquote id="daily-quote">Loading wisdom...</blockquote>
+
+  <!-- Link to your quotes file (must come BEFORE the script that uses it) -->
+  <script src="quotes.js"></script>
+
+  <!-- Script to display the quote based on today's date -->
+  <script>
+    // Pick quote based on day of year (same for all users today)
+    const now = new Date();
+    const start = new Date(now.getFullYear(), 0, 0);
+    const dayOfYear = Math.floor((now - start) / 86400000);
+    const quote = DAILY_QUOTES[dayOfYear % DAILY_QUOTES.length];
+
+    document.getElementById("daily-quote").textContent = quote;
+  </script>
 </body>
 </html>
